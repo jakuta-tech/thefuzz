@@ -2,17 +2,15 @@
     :target: https://github.com/seatgeek/thefuzz
 
 TheFuzz
-==========
+=======
 
 Fuzzy string matching like a boss. It uses `Levenshtein Distance <https://en.wikipedia.org/wiki/Levenshtein_distance>`_ to calculate the differences between sequences in a simple-to-use package.
 
 Requirements
 ============
 
--  Python 2.7 or higher
--  difflib
--  `python-Levenshtein <https://github.com/ztane/python-Levenshtein/>`_ (optional, provides a 4-10x speedup in String
-   Matching, though may result in `differing results for certain cases <https://github.com/seatgeek/thefuzz/issues/128>`_)
+-  Python 3.8 or higher
+-  `rapidfuzz <https://github.com/maxbachmann/RapidFuzz/>`_
 
 For testing
 ~~~~~~~~~~~
@@ -23,20 +21,14 @@ For testing
 Installation
 ============
 
-Using PIP via PyPI
+Using pip via PyPI
 
 .. code:: bash
 
     pip install thefuzz
 
-or the following to install `python-Levenshtein` too
 
-.. code:: bash
-
-    pip install thefuzz[speedup]
-
-
-Using PIP via Github
+Using pip via GitHub
 
 .. code:: bash
 
@@ -47,7 +39,7 @@ Adding to your ``requirements.txt`` file (run ``pip install -r requirements.txt`
 .. code:: bash
 
     git+ssh://git@github.com/seatgeek/thefuzz.git@0.19.0#egg=thefuzz
-    
+
 Manually via GIT
 
 .. code:: bash
@@ -101,6 +93,16 @@ Token Set Ratio
     >>> fuzz.token_set_ratio("fuzzy was a bear", "fuzzy fuzzy was a bear")
         100
 
+Partial Token Sort Ratio
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code:: python
+
+    >>> fuzz.token_sort_ratio("fuzzy was a bear", "wuzzy fuzzy was a bear")
+        84
+    >>> fuzz.partial_token_sort_ratio("fuzzy was a bear", "wuzzy fuzzy was a bear")
+        100
+
 Process
 ~~~~~~~
 
@@ -115,7 +117,7 @@ Process
 You can also pass additional parameters to ``extractOne`` method to make it use a specific scorer. A typical use case is to match file paths:
 
 .. code:: python
-  
+
     >>> process.extractOne("System of a down - Hypnotize - Heroin", songs)
         ('/music/library/good/System of a Down/2005 - Hypnotize/01 - Attack.mp3', 86)
     >>> process.extractOne("System of a down - Hypnotize - Heroin", songs, scorer=fuzz.token_sort_ratio)
@@ -123,5 +125,3 @@ You can also pass additional parameters to ``extractOne`` method to make it use 
 
 .. |Build Status| image:: https://github.com/seatgeek/thefuzz/actions/workflows/ci.yml/badge.svg
    :target: https://github.com/seatgeek/thefuzz
-
-

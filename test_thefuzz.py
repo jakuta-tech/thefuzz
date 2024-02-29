@@ -1,25 +1,30 @@
-# -*- coding: utf8 -*-
-from __future__ import unicode_literals
 import unittest
 import re
-import sys
 import pycodestyle
 
 from thefuzz import fuzz
 from thefuzz import process
 from thefuzz import utils
-from thefuzz.string_processing import StringProcessor
 
-if sys.version_info[0] == 3:
-    unicode = str
-
+scorers = [
+    fuzz.ratio,
+    fuzz.partial_ratio,
+    fuzz.token_sort_ratio,
+    fuzz.token_set_ratio,
+    fuzz.partial_token_sort_ratio,
+    fuzz.partial_token_set_ratio,
+    fuzz.QRatio,
+    fuzz.UQRatio,
+    fuzz.WRatio,
+    fuzz.UWRatio,
+]
 
 class StringProcessingTest(unittest.TestCase):
     def test_replace_non_letters_non_numbers_with_whitespace(self):
         strings = ["new york mets - atlanta braves", "Cães danados",
                    "New York //// Mets $$$", "Ça va?"]
         for string in strings:
-            proc_string = StringProcessor.replace_non_letters_non_numbers_with_whitespace(string)
+            proc_string = utils.full_process(string)
             regex = re.compile(r"(?ui)[\W]")
             for expr in regex.finditer(proc_string):
                 self.assertEqual(expr.group(), " ")
@@ -27,9 +32,13 @@ class StringProcessingTest(unittest.TestCase):
     def test_dont_condense_whitespace(self):
         s1 = "new york mets - atlanta braves"
         s2 = "new york mets atlanta braves"
-        p1 = StringProcessor.replace_non_letters_non_numbers_with_whitespace(s1)
-        p2 = StringProcessor.replace_non_letters_non_numbers_with_whitespace(s2)
-        self.assertNotEqual(p1, p2)
+        s3 = "new york mets   atlanta braves"
+        p1 = utils.full_process(s1)
+        p2 = utils.full_process(s2)
+        p3 = utils.full_process(s3)
+        self.assertEqual(p1, s3)
+        self.assertEqual(p2, s2)
+        self.assertEqual(p3, s3)
 
 
 class UtilsTest(unittest.TestCase):
@@ -54,15 +63,9 @@ class UtilsTest(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_asciidammit(self):
+    def test_ascii_only(self):
         for s in self.mixed_strings:
-            utils.asciidammit(s)
-
-    def test_asciionly(self):
-        for s in self.mixed_strings:
-            # ascii only only runs on strings
-            s = utils.asciidammit(s)
-            utils.asciionly(s)
+            utils.ascii_only(s)
 
     def test_fullProcess(self):
         for s in self.mixed_strings:
@@ -132,7 +135,8 @@ class RatioTest(unittest.TestCase):
         self.assertEqual(fuzz.partial_token_sort_ratio(self.s8, self.s8a, full_process=False), 100)
         self.assertEqual(fuzz.partial_token_sort_ratio(self.s9, self.s9a, full_process=True), 100)
         self.assertEqual(fuzz.partial_token_sort_ratio(self.s9, self.s9a, full_process=False), 100)
-        self.assertEqual(fuzz.partial_token_sort_ratio(self.s10, self.s10a, full_process=False), 50)
+        self.assertEqual(fuzz.partial_token_sort_ratio(self.s10, self.s10a, full_process=False), 67)
+        self.assertEqual(fuzz.partial_token_sort_ratio(self.s10a, self.s10, full_process=False), 67)
 
     def testTokenSetRatio(self):
         self.assertEqual(fuzz.token_set_ratio(self.s4, self.s5), 100)
@@ -167,11 +171,11 @@ class RatioTest(unittest.TestCase):
         # misordered full matches are scaled by .95
         self.assertEqual(fuzz.WRatio(self.s4, self.s5), 95)
 
-    def testWRatioUnicode(self):
-        self.assertEqual(fuzz.WRatio(unicode(self.s1), unicode(self.s1a)), 100)
+    def testWRatioStr(self):
+        self.assertEqual(fuzz.WRatio(str(self.s1), str(self.s1a)), 100)
 
-    def testQRatioUnicode(self):
-        self.assertEqual(fuzz.WRatio(unicode(self.s1), unicode(self.s1a)), 100)
+    def testQRatioStr(self):
+        self.assertEqual(fuzz.WRatio(str(self.s1), str(self.s1a)), 100)
 
     def testEmptyStringsScore100(self):
         self.assertEqual(fuzz.ratio("", ""), 100)
@@ -183,9 +187,9 @@ class RatioTest(unittest.TestCase):
         s3 = "LSINJHUANG DISTRIC"
         s4 = "SINJHUANG DISTRICT"
 
-        self.assertTrue(fuzz.partial_ratio(s1, s2) > 75)
-        self.assertTrue(fuzz.partial_ratio(s1, s3) > 75)
-        self.assertTrue(fuzz.partial_ratio(s1, s4) > 75)
+        self.assertGreater(fuzz.partial_ratio(s1, s2), 75)
+        self.assertGreater(fuzz.partial_ratio(s1, s3), 75)
+        self.assertGreater(fuzz.partial_ratio(s1, s4), 75)
 
     def testRatioUnicodeString(self):
         s1 = "\u00C1"
@@ -255,58 +259,44 @@ class RatioTest(unittest.TestCase):
         score = fuzz.WRatio(s1, s2, force_ascii=False)
         self.assertLess(score, 100)
 
-    def testTokenSetForceAscii(self):
+    def testPartialTokenSetRatioForceAscii(self):
         s1 = "ABCD\u00C1 HELP\u00C1"
         s2 = "ABCD HELP"
 
-        score = fuzz._token_set(s1, s2, force_ascii=True)
+        score = fuzz.partial_token_set_ratio(s1, s2, force_ascii=True)
         self.assertEqual(score, 100)
 
-        score = fuzz._token_set(s1, s2, force_ascii=False)
+        score = fuzz.partial_token_set_ratio(s1, s2, force_ascii=False)
         self.assertLess(score, 100)
 
-    def testTokenSortForceAscii(self):
+    def testPartialTokenSortRatioForceAscii(self):
         s1 = "ABCD\u00C1 HELP\u00C1"
         s2 = "ABCD HELP"
 
-        score = fuzz._token_sort(s1, s2, force_ascii=True)
+        score = fuzz.partial_token_sort_ratio(s1, s2, force_ascii=True)
         self.assertEqual(score, 100)
 
-        score = fuzz._token_sort(s1, s2, force_ascii=False)
+        score = fuzz.partial_token_sort_ratio(s1, s2, force_ascii=False)
         self.assertLess(score, 100)
-
-
-class ValidatorTest(unittest.TestCase):
-    def setUp(self):
-        self.testFunc = lambda *args, **kwargs: (args, kwargs)
 
     def testCheckForNone(self):
-        invalid_input = [
-            (None, None),
-            ('Some', None),
-            (None, 'Some')
-        ]
-        decorated_func = utils.check_for_none(self.testFunc)
-        for i in invalid_input:
-            self.assertEqual(decorated_func(*i), 0)
+        for scorer in scorers:
+            self.assertEqual(scorer(None, None), 0)
+            self.assertEqual(scorer('Some', None), 0)
+            self.assertEqual(scorer(None, 'Some'), 0)
 
-        valid_input = ('Some', 'Some')
-        actual = decorated_func(*valid_input)
-        self.assertNotEqual(actual, 0)
+            self.assertNotEqual(scorer('Some', 'Some'), 0)
 
     def testCheckEmptyString(self):
-        invalid_input = [
-            ('', ''),
-            ('Some', ''),
-            ('', 'Some')
-        ]
-        decorated_func = utils.check_empty_string(self.testFunc)
-        for i in invalid_input:
-            self.assertEqual(decorated_func(*i), 0)
+        for scorer in scorers:
+            if scorer in {fuzz.token_set_ratio, fuzz.partial_token_set_ratio, fuzz.WRatio, fuzz.UWRatio, fuzz.QRatio, fuzz.UQRatio}:
+                self.assertEqual(scorer('', ''), 0)
+            else:
+                self.assertEqual(scorer('', ''), 100)
 
-        valid_input = ('Some', 'Some')
-        actual = decorated_func(*valid_input)
-        self.assertNotEqual(actual, 0)
+            self.assertEqual(scorer('Some', ''), 0)
+            self.assertEqual(scorer('', 'Some'), 0)
+            self.assertNotEqual(scorer('Some', 'Some'), 0)
 
 
 class ProcessTest(unittest.TestCase):
@@ -367,6 +357,14 @@ class ProcessTest(unittest.TestCase):
         best = process.extractOne(query, events, processor=lambda event: event[0])
         self.assertEqual(best[0], events[0])
 
+    def testIssue57(self):
+        """
+        account for force_ascii
+        """
+        query = str(("test", "test"))
+        choices = [("test", "test")]
+        assert process.extract(query, choices)[0][1] == 100
+
     def testWithScorer(self):
         choices = [
             "new york mets vs chicago cubs",
@@ -414,8 +412,7 @@ class ProcessTest(unittest.TestCase):
         # we don't want to randomly match to something, so we use a reasonable cutoff
 
         best = process.extractOne(query, choices, score_cutoff=50)
-        self.assertTrue(best is None)
-        # self.assertIsNone(best) # unittest.TestCase did not have assertIsNone until Python 2.7
+        self.assertIsNone(best)
 
         # however if we had no cutoff, something would get returned
 
@@ -433,9 +430,9 @@ class ProcessTest(unittest.TestCase):
         query = "new york mets vs chicago cubs"
         # Only find 100-score cases
         res = process.extractOne(query, choices, score_cutoff=100)
-        self.assertTrue(res is not None)
+        self.assertIsNotNone(res)
         best_match, score = res
-        self.assertTrue(best_match is choices[0])
+        self.assertIs(best_match, choices[0])
 
     def testEmptyStrings(self):
         choices = [
@@ -469,12 +466,11 @@ class ProcessTest(unittest.TestCase):
         """We should be able to use a list-like object for choices."""
         def generate_choices():
             choices = ['a', 'Bb', 'CcC']
-            for choice in choices:
-                yield choice
+            yield from choices
         search = 'aaa'
         result = [(value, confidence) for value, confidence in
                   process.extract(search, generate_choices())]
-        self.assertTrue(len(result) > 0)
+        self.assertGreater(len(result), 0)
 
     def test_dict_like_extract(self):
         """We should be able to use a dict-like object for choices, not only a
@@ -487,9 +483,9 @@ class ProcessTest(unittest.TestCase):
         choices = UserDict({'aa': 'bb', 'a1': None})
         search = 'aaa'
         result = process.extract(search, choices)
-        self.assertTrue(len(result) > 0)
+        self.assertGreater(len(result), 0)
         for value, confidence, key in result:
-            self.assertTrue(value in choices.values())
+            self.assertIn(value, choices.values())
 
     def test_dedupe(self):
         """We should be able to use a list-like object for contains_dupes
@@ -498,7 +494,7 @@ class ProcessTest(unittest.TestCase):
         contains_dupes = ['Frodo Baggins', 'Tom Sawyer', 'Bilbo Baggin', 'Samuel L. Jackson', 'F. Baggins', 'Frody Baggins', 'Bilbo Baggins']
 
         result = process.dedupe(contains_dupes)
-        self.assertTrue(len(result) < len(contains_dupes))
+        self.assertLess(len(result), len(contains_dupes))
 
         # Test 2
         contains_dupes = ['Tom', 'Dick', 'Harry']
